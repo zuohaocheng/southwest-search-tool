@@ -1,0 +1,20 @@
+{
+  "name": "southwest-search-tool",
+  "version": "1.0.0",
+  "description": "Search tool for Southwest",
+  "main": "index.ts",
+  "scripts": {
+    "start": "npx ts-node --esm index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Zuo Haocheng",
+  "license": "BSD-2-Clause",
+  "type": "module",
+  "dependencies": {
+    "minimist": "^1.2.8",
+    "puppeteer": "^19.7.4",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-repl": "^2.3.3",
+    "ts-node": "^10.9.1"
+  }
+}
