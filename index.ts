@@ -13,6 +13,7 @@ if (argv.h) {
 }
 
 const debug = !!argv.debug;
+const headless = !argv.headful;
 const allowStop = !!argv['allow-stop'];
 
 const origins = argv.origin.split(',').map((s: String) => s.toUpperCase().trim());
@@ -34,9 +35,10 @@ puppeteer.use(repl());
 
 (async () => {
     const browser = await puppeteer.launch({
-        headless: !debug
+        headless
     });
     const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36');
 
     // Start an interactive REPL here
     async function repl() {
@@ -50,13 +52,22 @@ puppeteer.use(repl());
         return { delay: Math.random() * (max - min) + min };
     }
 
+    async function screenshot() {
+        if (debug) {
+            await page.screenshot({path: `log/${Date.now()}.png`});
+        }
+    }
+
     async function retry<T>(lambda: () => Promise<T>): Promise<T> {
-        const maxAttempt = 3;
+        const maxAttempt = debug ? 1 : 3;
         let attempts = 0;
         while (true) {
             try {
                 return await lambda();
             } catch (e) {
+                console.error(e);
+                await screenshot();
+
                 attempts++;
                 if (attempts >= maxAttempt) {
                     throw e;
@@ -67,13 +78,22 @@ puppeteer.use(repl());
 
     async function typeInAirportCode(airportCode: string, id: string) {
         await retry(async () => {
-            await page.type(id, airportCode, delay(50, 10));
+            await page.focus(`#${id}`);
+            await page.keyboard.press('Backspace');
+            await page.keyboard.press('Backspace');
+            await page.keyboard.press('Backspace');
+            await page.keyboard.press('Backspace');
+            await page.keyboard.press('Backspace');
+            await page.keyboard.press('Backspace');
+
+            await page.type(`#${id}`, airportCode, delay(50, 10));
             // Click first item in popup
-            await page.waitForSelector(`${id}--item-1`);
-            await page.click(`${id}--item-1`);
+            const selector = `[id^="${id}--item-"]:not(.swa-g-disabled)`;
+            await page.waitForSelector(selector, {timeout: 1000});
+            await page.click(selector);
 
             // @ts-ignore
-            const inputValue = await page.$eval(id, el => el.value);
+            const inputValue = await page.$eval(`#${id}`, el => el.value);
             if (inputValue != airportCode) {
                 throw `Input mismatch, expected ${airportCode}, actual ${inputValue}.`
             }
@@ -89,9 +109,9 @@ puppeteer.use(repl());
 
         await page.waitForSelector('input[value="oneway"]');
         await page.click('input[value="oneway"]');
-        await typeInAirportCode(origin, '#originationAirportCode');
+        await typeInAirportCode(origin, 'originationAirportCode');
         await page.type('#departureDate', `${date.getUTCMonth() + 1}/${date.getUTCDate()}`);
-        await typeInAirportCode(dest, '#destinationAirportCode');
+        await typeInAirportCode(dest, 'destinationAirportCode');
 
         await submit();
         await stripResult();
@@ -109,6 +129,7 @@ puppeteer.use(repl());
             );
 
             if (next == null || await next.evaluate(el => el.textContent?.includes('error'))) {
+                await screenshot();
                 ++throttles;
                 console.warn('Get throttles. Backing off..')
             } else {
