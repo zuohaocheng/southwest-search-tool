@@ -88,9 +88,13 @@ puppeteer.use(repl());
 
             await page.type(`#${id}`, airportCode, delay(50, 10));
             // Click first item in popup
-            const selector = `[id^="${id}--item-"]:not(.swa-g-disabled)`;
+            const selector = `[id^="${id}--item-"]`;
             await page.waitForSelector(selector, {timeout: 1000});
-            await page.click(selector);
+            const matchingEntry = await page.$$eval(selector, (els, airportCode) => els.filter(el => el.textContent?.endsWith(airportCode)).map(el => el.id), airportCode);
+            if (matchingEntry.length != 1) {
+                throw `Non unique matching airport: ${matchingEntry}.`
+            }
+            await page.click(`#${matchingEntry[0]}`);
 
             // @ts-ignore
             const inputValue = await page.$eval(`#${id}`, el => el.value);
@@ -139,6 +143,9 @@ puppeteer.use(repl());
     }
 
     async function stripResult() {
+        const originDest = await page.$eval('.price-matrix--airport-codes', el => el.textContent);
+        const date = await page.$eval('.calendar-strip--content_selected', el => el.textContent);
+        console.log(`${originDest}, ${date}`);
 
         if (!allowStop) {
             if (await page.$('.filters--filter-area-nonstop') != null) {
@@ -147,10 +154,6 @@ puppeteer.use(repl());
                 console.info('No non-stop. Showing everything.');
             }
         }
-
-        const originDest = await page.$eval('.price-matrix--airport-codes', el => el.textContent);
-        const date = await page.$eval('.calendar-strip--content_selected', el => el.textContent);
-        console.log(`${originDest}, ${date}`);
 
         const results = await page.$$('.air-booking-select-detail');
 
